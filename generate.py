@@ -13,6 +13,9 @@ import io
 import os
 import sys
 import tarfile
+
+# crates.csv 的 readme 列可能非常大，需要提高 CSV 字段大小限制
+csv.field_size_limit(sys.maxsize)
 import urllib.request
 from collections import defaultdict
 
