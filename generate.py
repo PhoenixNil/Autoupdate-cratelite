@@ -18,7 +18,6 @@ def main():
     print("下载 crates.io 数据库 dump...")
     dump_path = "db-dump.tar.gz"
 
-    # 下载（约 300MB，需要几分钟）
     if not os.path.exists(dump_path):
         urllib.request.urlretrieve(DUMP_URL, dump_path)
         print("下载完成")
@@ -29,19 +28,42 @@ def main():
     crates = []
 
     with tarfile.open(dump_path, "r:gz") as tar:
-        # 找到 data/crates.csv
         for member in tar.getmembers():
-            if member.name.endswith("/data/crates.csv"):
+            # 匹配路径: 可能是 2025-03-09-020017/data/crates.csv 这样的格式
+            if member.name.endswith("data/crates.csv"):
                 f = tar.extractfile(member)
                 if f is None:
                     continue
+
                 text = io.TextIOWrapper(f, encoding="utf-8")
                 reader = csv.DictReader(text)
+
+                # 打印实际的列名，方便调试
+                print(f"CSV 列名: {reader.fieldnames}")
+
                 for row in reader:
                     name = row["name"]
-                    downloads = int(row["downloads"])
+                    # 尝试多种可能的下载量列名
+                    downloads = 0
+                    for key in ["downloads", "total_downloads", "recent_downloads"]:
+                        if key in row:
+                            try:
+                                downloads = int(row[key])
+                            except (ValueError, TypeError):
+                                downloads = 0
+                            break
+
                     crates.append((name, downloads))
                 break
+
+    if not crates:
+        print("错误: 未找到 crates.csv 或无法解析")
+        print("尝试列出 tar 包中的文件:")
+        with tarfile.open(dump_path, "r:gz") as tar:
+            for member in tar.getmembers():
+                if "crate" in member.name.lower():
+                    print(f"  {member.name}")
+        return
 
     print(f"共解析 {len(crates)} 个 crate")
 
