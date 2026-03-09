@@ -1,0 +1,61 @@
+# .github/workflows/update-crates-index.yml
+# 每天自动从 crates.io dump 生成 crates-index.txt 并发布到 GitHub Releases
+
+name: Update Crates Index
+
+on:
+  schedule:
+    # 每天 UTC 06:00 运行（dump 通常在凌晨更新）
+    - cron: "0 6 * * *"
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate crates index
+        run: python generate.py
+
+      - name: Compress index
+        run: gzip -k crates-index.txt
+
+      - name: Get date
+        id: date
+        run: echo "today=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: index-${{ steps.date.outputs.today }}
+          name: "Crates Index ${{ steps.date.outputs.today }}"
+          files: |
+            crates-index.txt
+            crates-index.txt.gz
+          body: |
+            自动生成的 crate 名称索引（按下载量降序排列）。
+            - `crates-index.txt` - 纯文本，每行一个 crate 名
+            - `crates-index.txt.gz` - gzip 压缩版
+
+      - name: Update latest tag
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
+      - name: Update Latest Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Crates Index"
+          files: |
+            crates-index.txt
+            crates-index.txt.gz
+          body: |
+            最新的 crate 名称索引（${{ steps.date.outputs.today }} 更新）。
+            你的 VSCode 扩展应该下载这个 release 的文件。
